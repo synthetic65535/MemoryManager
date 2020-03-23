@@ -1,5 +1,6 @@
 #include "memory_manager.h"
 #include <stdint.h>
+#include "cmsis_os.h"
 
 /* -------- Variables -------- */
 
@@ -32,6 +33,8 @@ void init(void)
 // Get one block of memory
 void* get_mem(void)
 {
+	taskENTER_CRITICAL();
+	
 	if (free_list == 0) return 0; // No free memory left
 	
 	if (used_list == 0) // If used_list is empty
@@ -52,19 +55,24 @@ void* get_mem(void)
 		
 	}
 	
-	return &(used_list->data[0]);
+	void* retval;
+	retval = &(used_list->data[0]);
+	taskEXIT_CRITICAL();
+	return retval;
 }
 
 // Release memory
 void free_mem(void *_p)
 {
+	taskENTER_CRITICAL();
+	
 	if (used_list == 0) return; // Nothing was used
 	if (_p == 0) return; // Null pointer
-	if ((_p < (void*)pool) || (_p > ((void*)pool + POOL_SIZE * sizeof(block_t)))) return; // Checking boundaries
-	if ((_p - (void*)pool - sizeof(block_t*)*2) % sizeof(block_t) != 0) return; // Checking if it is correct pointer to data
+	if (((uintptr_t)_p < (uintptr_t)pool) || ((uintptr_t)_p > ((uintptr_t)pool + POOL_SIZE * sizeof(block_t)))) return; // Checking boundaries
+	if (((uintptr_t)_p - (uintptr_t)pool - sizeof(block_t*)*2) % sizeof(block_t) != 0) return; // Checking if it is correct pointer to data
 	
 	block_t *given_block;
-	given_block = (block_t*)(_p - sizeof(block_t*)*2); // Getting a pointer to the beginning of block structure
+	given_block = (block_t*)((uintptr_t)_p - sizeof(block_t*)*2); // Getting a pointer to the beginning of block structure
 	
 	// Removing given_block from used_list and repair pointers
 	if (given_block->prev != 0) given_block->prev->next = given_block->next;
@@ -84,4 +92,6 @@ void free_mem(void *_p)
 		given_block->prev = 0;
 		free_list = given_block;
 	}
+	
+	taskEXIT_CRITICAL();
 }
